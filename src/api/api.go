@@ -18,19 +18,16 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-var logger = logging.NewLogger(config.GetConfig())
-
-func InitServer(cfg *config.Config) {
+func InitServer(cfg *config.Config, logger *logging.ZapLogger) {
 	gin.SetMode(cfg.Server.RunMode)
 	r := gin.New()
-	RegisterValidators()
+	RegisterValidators(logger)
 
 	r.Use(middleware.Cors(cfg))
 	r.Use(gin.Logger(), gin.CustomRecovery(middleware.ErrorHandler))
 
 	RegisterRoutes(r, cfg)
 	RegisterSwagger(r, cfg)
-	logger := logging.NewLogger(cfg)
 	logger.Info(logging.General, logging.Startup, "Started", nil)
 	err := r.Run(fmt.Sprintf(":%s", cfg.Server.Port))
 	if err != nil {
@@ -49,7 +46,7 @@ func RegisterRoutes(r *gin.Engine, cfg *config.Config) {
 
 }
 
-func RegisterValidators() {
+func RegisterValidators(logger *logging.ZapLogger) {
 	val, ok := binding.Validator.Engine().(*validator.Validate)
 	if ok {
 		err := val.RegisterValidation("mobile", validation.IranianMobileNumberValidator, true)

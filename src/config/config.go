@@ -1,7 +1,10 @@
 package config
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -14,7 +17,34 @@ type Config struct {
 	Redis    RedisConfig
 	Cors     CorsConfig
 	Logger   LoggerConfigs
-	Env      string
+	Env      EnvConfig
+	Mqtt     []MqttConfig
+	Kinesis  []KinesisConfig
+	Sqs      SqsConfig
+	Jwks     JwksCofig
+}
+
+type EnvConfig struct {
+	Stage   string
+	AppName string
+}
+
+type KinesisConfig struct {
+	Name string
+}
+
+type JwksCofig struct {
+	AuthEndpoint string
+}
+
+type MqttConfig struct {
+	Id        string
+	BrokerUrl string
+	Topic     string
+}
+
+type SqsConfig struct {
+	Name string
 }
 
 type ServerConfig struct {
@@ -76,6 +106,13 @@ func ParseConfig(v *viper.Viper) (*Config, error) {
 		return nil, err
 	}
 
+	cfg.Kinesis = loadKinesisStreams()
+	mqttClients, err := loadMQTTClients()
+	if err != nil {
+		log.Fatalf("mqtt client parsing failed : %s", err.Error())
+	}
+	cfg.Mqtt = mqttClients
+
 	return &cfg, nil
 }
 
@@ -83,8 +120,6 @@ func LoadConfig() *viper.Viper {
 	v := viper.New()
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-
-	v.SetDefault("env", "dev")
 
 	// Server config
 	v.SetDefault("server.port", "8080")
@@ -123,5 +158,70 @@ func LoadConfig() *viper.Viper {
 	// Cors config
 	v.SetDefault("cors.alloworigins", "*")
 
+	// Env config
+	v.SetDefault("env.stage", "dev")
+	v.SetDefault("env.appname", "api")
+
+	// Sqs config
+	v.SetDefault("sqs.name", "")
+
+	// Jwks config
+	v.SetDefault("jwks.authendpoint", "")
+
 	return v
+}
+
+func loadKinesisStreams() []KinesisConfig {
+	var kinesisConfigs []KinesisConfig
+
+	for i := 0; ; i++ {
+		envVar := fmt.Sprintf("KINESIS_STREAM_%d", i)
+		envValue := os.Getenv(envVar)
+		if envValue == "" {
+			break
+		}
+
+		kinesisConfig := KinesisConfig{
+			Name: envValue,
+		}
+		kinesisConfigs = append(kinesisConfigs, kinesisConfig)
+	}
+
+	return kinesisConfigs
+}
+
+func loadMQTTClients() ([]MqttConfig, error) {
+	var mqttClients []MqttConfig
+
+	for i := 0; ; i++ {
+		envVar := fmt.Sprintf("MQTT_CLIENT_%d", i)
+		envVal := os.Getenv(envVar)
+		if envVal == "" {
+			break
+		}
+
+		var cfg MqttConfig
+		if err := json.Unmarshal([]byte(envVal), &cfg); err != nil {
+			return nil, fmt.Errorf("error parsing %s: %w", envVar, err)
+		}
+
+		mqttClients = append(mqttClients, cfg)
+	}
+
+	specialClients := []string{"MQTT_CLIENT_GTW"}
+	for _, envVar := range specialClients {
+		envVal := os.Getenv(envVar)
+		if envVal == "" {
+			break
+		}
+
+		var cfg MqttConfig
+		if err := json.Unmarshal([]byte(envVal), &cfg); err != nil {
+			return nil, fmt.Errorf("error parsing %s: %w", envVar, err)
+		}
+
+		mqttClients = append(mqttClients, cfg)
+	}
+
+	return mqttClients, nil
 }

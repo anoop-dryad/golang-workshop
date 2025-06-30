@@ -9,15 +9,18 @@ import (
 )
 
 func main() {
-	log.Println("main called.")
 	cfg := config.GetConfig()
-	logger := logging.NewLogger(cfg)
+	cfg.Env.AppName = "api"
+	logger, err := logging.NewLogger(cfg)
+	if err != nil {
+		log.Fatalf("failed to initialize logger: %v", err)
+	}
 
-	err := database.InitDb(cfg)
+	err = database.InitDb(cfg)
 	defer database.CloseDb()
 	if err != nil {
 		logger.Fatal(logging.Postgres, logging.Startup, err.Error(), nil)
 	}
 
-	api.InitServer(cfg)
+	api.InitServer(cfg, logger)
 }

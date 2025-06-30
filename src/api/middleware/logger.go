@@ -27,11 +27,11 @@ func (w bodyLogWriter) WriteString(s string) (int, error) {
 }
 
 func DefaultStructuredLogger(cfg *config.Config) gin.HandlerFunc {
-	logger := logging.NewLogger(cfg)
+	logger, _ := logging.NewLogger(cfg)
 	return structuredLogger(logger)
 }
 
-func structuredLogger(logger logging.Logger) gin.HandlerFunc {
+func structuredLogger(logger *logging.ZapLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if strings.Contains(c.FullPath(), "swagger") {
 			c.Next()
